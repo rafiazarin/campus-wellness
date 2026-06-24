@@ -1,0 +1,132 @@
+// Campus Wellness — data model
+// SQLite keeps the project clone-and-run with no external database server.
+// Roles share one `User` table and extend it 1-to-1 (Student / Professional / Admin).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String // "student" | "professional" | "admin"
+  phone        String?
+  createdAt    DateTime @default(now())
+
+  student      Student?
+  professional Professional?
+  admin        Admin?
+  sessions     Session[]
+}
+
+model Student {
+  userId     Int     @id
+  studentNo  String?
+  department String?
+  semester   Int?
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  moodLogs      MoodLog[]
+  habitLogs     HabitLog[]
+  appointments  Appointment[]
+  notifications Notification[]
+}
+
+model Professional {
+  userId         Int     @id
+  specialization String?
+  licenseNo      String?
+  bio            String?
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  appointments Appointment[]
+}
+
+model Admin {
+  userId Int     @id
+  level  String?
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Server-side sessions. The cookie stores only an opaque token.
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MoodLog {
+  id            Int      @id @default(autoincrement())
+  studentUserId Int
+  logDate       DateTime // normalised to start-of-day
+  mood          Int // 1-5
+  stress        Int // 1-5
+  sleep         Int // 1-5
+  note          String?
+  createdAt     DateTime @default(now())
+  student       Student  @relation(fields: [studentUserId], references: [userId], onDelete: Cascade)
+
+  @@unique([studentUserId, logDate])
+}
+
+model Habit {
+  id   Int        @id @default(autoincrement())
+  name String     @unique
+  icon String?
+  logs HabitLog[]
+}
+
+model HabitLog {
+  id            Int      @id @default(autoincrement())
+  studentUserId Int
+  habitId       Int
+  logDate       DateTime
+  completed     Boolean  @default(true)
+  student       Student  @relation(fields: [studentUserId], references: [userId], onDelete: Cascade)
+  habit         Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([studentUserId, habitId, logDate])
+}
+
+model Appointment {
+  id                 Int      @id @default(autoincrement())
+  studentUserId      Int
+  professionalUserId Int
+  type               String // Counseling | Medical | Nutrition
+  date               DateTime
+  time               String // "14:30"
+  reason             String?
+  status             String   @default("Pending") // Pending | Approved | Rejected | Completed | Cancelled
+  createdAt          DateTime @default(now())
+
+  student      Student      @relation(fields: [studentUserId], references: [userId], onDelete: Cascade)
+  professional Professional @relation(fields: [professionalUserId], references: [userId], onDelete: Cascade)
+}
+
+model Notification {
+  id            Int      @id @default(autoincrement())
+  studentUserId Int
+  message       String
+  read          Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  student       Student  @relation(fields: [studentUserId], references: [userId], onDelete: Cascade)
+}
+
+model Resource {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  category    String
+  url         String?
+  createdAt   DateTime @default(now())
+}
